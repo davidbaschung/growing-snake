@@ -8,3 +8,4 @@
   <li>basic Javascript usage</li>
 </ul>
  
+![Screenshot](https://user-images.githubusercontent.com/29238761/158185205-c97e6022-1f53-49e5-8b4b-987c00f28994.png)
