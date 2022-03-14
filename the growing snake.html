@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+	
+<html>
+	<head>
+		<meta charset='utf-8'></meta>
+		
+<! 
+Gymnase Français de Bienne
+OC Info 2014
+David Baschung, classe 14D.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Projet : Le Serpent Grandissant.
+Explications : Le serpent grandissant est un jeu pour navigateur codé en javascript. Vous contrôlez les déplacement d`un serpent,
+	à l'aide des touches du clavier W,A,S,D, dans une zone canvas fermée, limitée, et découpée en une grille de cases, sur lequelles le serpent est affiché.
+	Le jeu se termine lorsque le serpent percute les bords de la zone ou se mord la queue. Il grandit constamment, ce qui limite la place qu`il peut prendre dans la zone.
+	Le but du jeu est d'obtenir le meilleur score, qui augmente avec le temps. Toutefois, afin d`éviter que le joueur effectue des mouvemements calculés trop à l'avance,
+	la zone se couvre régulièrement de cases dangereuses choisies aléatoirement et qui font perdre des points. Dans les cas difficiles ou la zone est couverte de dangers,
+	le joueur peut arrêter le jeu prématurément, en allant en arrière, afin de conserver les points déjà obtenus.
+>
+		
+		<title>le serpent grandissant</title>
+		
+		<style type='text/css'>
+			body{
+				min-height:100%; 								/* sert à placer le footer en bas de la page */
+				background-color:#3C3333;
+			}
+			
+			div.main{											
+				text-align:center;								/* une balise principale centre le tout */
+				font-family:impact,arial,sans-serif,times;
+				color:#FFDDBB;
+				text-shadow: 0px 1px 4px black;
+			}
+			
+			h1{ color:#F40000; }
+			
+			canvas{ border-radius:3px; display:inline;}			/* display:inline pour mettre les instructions (aside) à coté */
+			
+			aside{
+				display:inline-block;
+				vertical-align:top;
+				width:156px;
+				height:580px;
+				padding:10px;
+				margin:15px;
+				margin-top:0;
+				border-radius:5px;
+				background-color:#F40000;
+			}
+			
+			div.score{
+				display:inline;
+				border:solid 2px #2B2222;
+				padding-right:8px;
+				padding-left:8px;
+				padding-top:4px;
+				padding-bottom:4px;
+				border-radius:5px;
+				background-color:#F40000;
+				font-size:20px;
+			}
+			
+			footer{
+				position:absolute;								/* au bas de la page */
+				bottom:0;
+				z-index:-1;
+				min-width:99%;
+				border-top:2px solid #BB8077;
+				color:#BB8077;
+			}
+		</style>
+		
+		<script language='javascript'>
+			var ctx								// canvas
+			
+			var serpent = []					// liste des cases que couvre le serpent
+			var xDirection, yDirection			// stockage pour la direction de la prochaine case, lorsque le mouvement sera appelé
+			xDirection = 0 ; yDirection = -1	// les chiffres indiquent directement la case concernée, à coté de la tête du serpent
+			var floatScore = 5.0				// variable flottante qui s'incrémente de 0.25 à chaque mouvement, correspond à la taille du serpent, à sa longueur à chaque entier, et au score.
+			
+			var bestScore = 0					// meilleur score
+			var danger = []						// listes des cases couvertes par les points rouges dangeureux.
+			
+			var gameOn = false					// variable permettant de vérifier si le jeu est en cours / pause .
+			var gameAvailable = true			// variable qui sera affectée false quelques instants lorsque l'on perd, afin d'empêcher le joueur de redémarrer.
+			var varSetInterval					// stockage du setinterval du mouvement, afin de pouvoir l'arrêter
+			var speed = 100						// (vitesse du jeu)
+
+			
+			
+			
+			function $(id) { return document.getElementById(id) }
+			
+			function init() {
+				ctx = $('canvas1').getContext('2d') 
+				for (var i=20; i<25; i++) {		// création de la base du serpent ( éventuellement possible de mettre avec les variables )
+					serpent.push([15,i])
+				}
+			}
+
+			function draw() {													// cette fonction couvre tout l'affichage dans canvas
+				ctx.clearRect(0,0,800,600)										// fond du canvas
+				ctx.fillStyle = '#FFEECC'
+				ctx.fillRect(0,0,800,600)
+				
+				ctx.fillStyle = '#FF0000'										// points rouges
+				for (var i=0; i<danger.length; i++) {
+					ctx.fillRect(danger[i][0]*20+1, danger[i][1]*20+1, 18, 18)	// (le contenu des positions dans les listes est multiplié et forme une grille)
+				}
+				
+				len = serpent.length
+				for (var i=0; i<len; i++){										// couleur du serpent pour chaque case
+					red = Math.round( 1 * (255-(255/(len)*i)))
+					green = Math.round( 0.3 * (255-(255/(len)*i)))
+					blue = 0													// (on peut éventuellement changer la valeur)
+					ctx.fillStyle = String('rgb('+red+','+green+','+blue+')')	// couleur rgb par case
+					ctx.fillRect(serpent[i][0]*20+1, serpent[i][1]*20+1, 18, 18)
+				}
+			}
+			
+			function keypress(event) {										// fonction rassemblant tout les événements claviers
+				if (gameAvailable == true) {							// permet de bloquer toutes les actions de l'utilisateur un instant, lorsqu'il perd. ( si false )
+					if ( ! (event.charCode == 97) && ! (event.charCode == 119) && ! (event.charCode == 115) && ! (event.charCode == 100)) { switchgame() } // couvre toute les touches qui ne dirigent pas le serpent. Alterne "jeu en cours" / pause.
+					if (event.charCode == 97)  {						// les 4 touches de directions
+						if (gameOn == false) {	switchgame() }			// elles permettent aussi de démarrer le jeu s'il est en pause.
+						else { xDirection = -1 ; yDirection = 0 }		// elle donnent la direction de la prochaine case à rajouter au serpent, par rapport à la tête
+					}
+					if (event.charCode == 119) {
+						if (gameOn == false) { switchgame() }
+						else { xDirection = 0 ; yDirection = -1 }
+					}
+					if (event.charCode == 115) {
+						if (gameOn == false) { switchgame() }
+						else { xDirection = 0 ; yDirection = 1 }
+					}
+					if (event.charCode == 100) {
+						if (gameOn == false) { switchgame() }
+						else { xDirection = 1 ; yDirection = 0 }
+					}
+				}
+			}
+			
+			function switchgame() {							// fonction alternant jeu / pause
+				if (gameOn == false) {
+					gameOn = true							// jeu
+					varSetInterval = setInterval(function(){move()}, speed) //création de l'automate
+				} else {
+					if (gameOn == true) {
+						gameOn = false						// pause
+						clearInterval(varSetInterval)		// destruction de l'automate
+					}
+				}
+			}
+			
+			function move() {																			// fonction couvrant les changements : serpent et points rouges.
+				var newXHead, newYHead
+				newXHead = serpent[0][0]+xDirection ; newYHead = serpent[0][1]+yDirection				// nouvelle case pour la tête du serpent. Est directement donnée par la direction (touches).
+				
+				$('score1').innerHTML = 'Score : ' + String(Math.round(floatScore))						// actualisation du score (div).
+				
+				floatScore += 0.25																		// longueur incrémentée à chaque mouvement. Le nombre est entier toutes les 4 fois.
+				if (floatScore != Math.round(floatScore)) {												// chaque entier correspond à la prochaine longueur du serpent
+					serpent.pop()																		// si le nombre est flottant, il faut donc couper la queue
+				}
+				if (floatScore%3 == 0) {																// (0.25 * 4) * 3 = 3 (*x) ==> toutes les 12 fois :...
+					danger.unshift( [ Math.round(Math.random()*39), Math.round(Math.random()*29) ] )	// création d'un nouveau point rouge aléatoire.
+				}
+
+				serpent.unshift( [newXHead, newYHead] )													// rajoute la tête
+				draw()																					// tout est prêt pour redessiner le canvas (même si le joueur perd!)
+
+				if  (newXHead<0 || newXHead>39 || newYHead<0 || newYHead>29) { losegame() }				// limites de la zone du jeu
+				for (var i=1; i<serpent.length; i++) {													// vérifie les intersections tête - queue
+					if (newXHead == serpent[i][0] && newYHead == serpent[i][1]) { losegame() }
+				}
+				
+				for (var i=0; i<danger.length; i++) {													// vérifie les intersections de la tête avec chaque point rouge
+					if (newXHead == danger[i][0] && newYHead == danger[i][1]) {
+						if (floatScore >= 10) { floatScore -= 10 } else { floatScore = 0 }				// (si le joueur est mauvais, il a au moins 0 points)
+						danger.splice(i, 1)																// un point rouge mangé est détruit
+					}
+				}
+				
+				
+			}
+			
+			
+			function losegame() {											// jeu terminé
+				switchgame()												// on met la pause
+				printlosegame()												// printlosegame affiche : "jeu terminé" dans le canvas
+				setTimeout( function() {printlosegame()} , 1500 )			// printlosegame efface  : "jeu terminé" dans le canvas
+				if (Math.round(floatScore) > bestScore) { bestScore = Math.round(floatScore) }	// condition de meilleur score (moyenne de score valant la meilleure longueur) (==>nb entier pour l'affichage div)
+				$('score2').innerHTML = 'Meilleur : ' + String(bestScore)
+				serpent = []												// réinitialisations
+				for (var i=20; i<25; i++) {
+					serpent.push([15,i])
+				}
+				xDirection = 0 ; yDirection = -1
+				floatScore = 0
+				danger = []
+			}
+			
+			function printlosegame()  {
+				if (gameAvailable == true) {
+					gameAvailable = false
+					ctx.fillStyle = '#F40000'
+					ctx.font = "100px impact,arial,sans-serif,times"
+					ctx.fillText('Jeu terminé',200,300,400)
+					ctx.fillStyle = '#FFEECC'
+					ctx.fillRect(320,313,175,20)
+					ctx.fillStyle = '#F40000'
+					ctx.font = "20px impact,arial,sans-serif,times"
+					ctx.fillText('(appuyez une touche)',320,330)
+				} else {
+					gameAvailable = true
+				}
+				
+			}
+		</script>
+	</head>
+
+	
+	
+	<body onload='init(),draw()' onkeypress='keypress(event)'>
+	
+		<div class='main'>
+			<h1>Le Serpent Grandissant</h1>
+			<canvas id='canvas1' width='800' height='600'></canvas>
+			<span>
+				<aside>
+					<div>Appuyez sur une touche pour démarrer ou mettre le jeu en pause.</div>
+					<br></br>Touches pour jouer :
+					<div style='font-size:2em'>
+								W
+						<br>A   S   D</br>
+					</div>
+					<br></br>Le serpent et votre score grandissent constamment. Evitez de percuter les bords, de vous mordre, et surtout évitez les points rouges car ils vous feront perdre 10 points.
+					<br></br>Si vous êtes encerclés de points, il vaut donc parfois mieux vous arrêter à temps en faisant aller le serpent en arrière.
+					<br></br>A vous de jouer!
+				</aside>
+			</span>
+			<br></br>
+			<div class='score' id='score1'>Score : 0</div>
+			<div class='score' id='score2'>Meilleur : 0</div>
+		</div>
+
+		<footer>
+			David Baschung
+			<br>Classe 14D
+			<br>2014
+		</footer>
+		
+	</body>
+</html>
